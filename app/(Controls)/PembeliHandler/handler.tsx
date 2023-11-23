@@ -5,6 +5,45 @@ import { Penjual, db } from "@/app/(Entities)/Penjual/entity";
 import { addPesanan } from "../PenjualHandler/handler";
 import { Dispatch, SetStateAction } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
+import OneSignal from "react-onesignal";
+
+export async function getPembeliByNamaAndKios(nama: String, kios: String) {
+  const penjual: Penjual = await getPenjualByKios(kios);
+  const pembeli = penjual.getPesanan().filter((node) => {
+    return node.nama === nama;
+  });
+
+  return new Pembeli(pembeli ? pembeli[0] : undefined);
+}
+export async function subscribePushNotification() {
+  await OneSignal.init({
+    appId: "38b65b98-e456-48ea-9ea8-a62643db0e26",
+    allowLocalhostAsSecureOrigin: true,
+  }).finally(() => {
+    OneSignal.Slidedown.promptPush({ force: true });
+    OneSignal.Notifications.addEventListener("permissionChange", () => {
+      typeof window !== "undefined" ? window.location.reload() : {};
+    });
+  });
+  OneSignal.User.PushSubscription.id
+    ? storeToken(OneSignal.User.PushSubscription.id as String)
+    : {};
+}
+export async function storeToken(token: String) {
+  const pembeli = getCurrentPembeli();
+  pembeli.setToken(token);
+  setCurrentPembeli(pembeli);
+}
+export async function assignNama(
+  nama: String,
+  kios: String,
+  router: AppRouterInstance
+) {
+  await addPesanan(nama, kios);
+  setCurrentPembeli(await getPembeliByNamaAndKios(nama, kios));
+
+  redirectTunggu(router);
+}
 
 export function subscribeStatus(
   callback: Dispatch<SetStateAction<String | undefined>>
@@ -18,12 +57,6 @@ export function subscribeStatus(
 export function redirectTunggu(router: AppRouterInstance) {
   router.push("/wait");
 }
-export async function assignNama(nama: String, kios: String) {
-  await addPesanan(nama, kios);
-  setCurrentPembeli(await getPembeliByNamaAndKios(nama, kios));
-}
-export async function notifyPembeli(nama: String) {}
-
 export function setCurrentPembeli(pembeli: Pembeli) {
   typeof window !== "undefined"
     ? localStorage.setItem("pembeli", JSON.stringify(pembeli))
@@ -33,15 +66,10 @@ export function getCurrentPembeli() {
   const pembeliString =
     typeof window !== "undefined" ? localStorage.getItem("pembeli") : "";
   const currentPembeli: Pembeli = pembeliString
-    ? JSON.parse(pembeliString)
+    ? new Pembeli(JSON.parse(pembeliString))
     : new Pembeli(undefined);
   return currentPembeli;
 }
-export async function getPembeliByNamaAndKios(nama: String, kios: String) {
-  const penjual: Penjual | undefined = await getPenjualByKios(kios);
-  const pembeli = penjual?.pesanan.filter((node) => {
-    return node.nama === nama;
-  });
-
-  return new Pembeli(pembeli ? pembeli[0] : undefined);
+export function removeCurrentPembeli() {
+  typeof window !== "undefined" ? localStorage.removeItem("pembeli") : {};
 }

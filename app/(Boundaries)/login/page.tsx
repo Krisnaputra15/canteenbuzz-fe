@@ -1,6 +1,10 @@
 "use client";
 import { redirectMainPage } from "@/app/(Controls)/KantinHandler/handler";
 import {
+  getCurrentPembeli,
+  redirectTunggu,
+} from "@/app/(Controls)/PembeliHandler/handler";
+import {
   isPenjualAvailable,
   isPenjualLoggedAndAvailable,
   removeLoggedPenjual,
@@ -15,6 +19,10 @@ const HalamanLogin = () => {
   const [loadPage, setLoadPage] = useState(false);
 
   useEffect(() => {
+    if (getCurrentPembeli().getNama()) {
+      getCurrentPembeli().setStatus("Done");
+      redirectTunggu(router);
+    }
     setErrorElement(undefined);
     isPenjualLoggedAndAvailable().then((isLoggedAndAvailable) => {
       if (isLoggedAndAvailable) {
@@ -46,7 +54,7 @@ const HalamanLogin = () => {
   return loadPage ? (
     <div className="z-10 h-screen w-screen flex flex-col justify-center items-center ">
       <div className="">
-        <h1>Login</h1>
+        <h1 className="text-lg">Login</h1>
       </div>
       <div className="">Selamat Datang Kembali!</div>
       <form

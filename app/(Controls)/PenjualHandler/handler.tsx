@@ -15,18 +15,49 @@ import {
 } from "firebase/firestore";
 import { Pembeli } from "@/app/(Entities)/Pembeli/entity";
 import { Dispatch, SetStateAction } from "react";
+import { getPembeliByNamaAndKios } from "../PembeliHandler/handler";
+import OneSignal from "react-onesignal";
 
+export async function notifyPembeli(nama: String) {
+  const penjual = getCurrentPenjual();
+  const pembeli = await getPembeliByNamaAndKios(
+    nama,
+    penjual.getKios() as String
+  );
+
+  const options = {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      Authorization: "Basic ZmU4NzU0YzctMGNhMi00YTFiLWJkMTYtODViYjljMmQzYjkw",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      app_id: "38b65b98-e456-48ea-9ea8-a62643db0e26",
+      include_subscription_ids: [pembeli.token],
+      contents: {
+        en: "Pesanan Kamu sudah selesai!",
+      },
+    }),
+  };
+
+  pembeli.getStatus() === "Wait"
+    ? fetch("https://onesignal.com/api/v1/notifications", options)
+        .then((response) => response.json())
+        .then((response) => {
+          console.log(response);
+          pembeli.setStatus("Ready");
+        })
+        .catch((err) => console.error(err))
+    : {};
+}
 export async function addPesanan(nama: String, kios: String) {
   const penjual = await getPenjualByKios(kios);
   const pembeli = await Pembeli.build(nama);
   pembeli.setPenjualId(penjual?.id);
   if (penjual) {
-    penjual.setPesanan([...penjual.pesanan, pembeli]);
+    penjual.setPesanan([...penjual.getPesanan(), pembeli]);
   }
-}
-export function isPenjualLogged() {
-  const isLogged = getCurrentPenjual() != null;
-  return isLogged;
 }
 export async function isPenjualAvailable(username: String, password: String) {
   const penjual = await getPenjualByCredentials(username, password);
@@ -48,22 +79,6 @@ export async function isPenjualLoggedAndAvailable() {
     );
   } else return false;
 }
-export function getCurrentPenjual() {
-  const penjualString =
-    typeof window !== "undefined" ? localStorage.getItem("penjual") : "";
-  const penjual: Penjual | null = penjualString
-    ? JSON.parse(penjualString)
-    : null;
-  return penjual;
-}
-export function getCurrentPenjualUsername() {
-  const penjual = getCurrentPenjual();
-  return penjual?.username;
-}
-export function getCurrentPenjualPassword() {
-  const penjual = getCurrentPenjual();
-  return penjual?.password;
-}
 export async function getPesananByNama(name: String) {
   const queryPembeli = query(
     collection(db, "pembeli"),
@@ -81,14 +96,28 @@ export async function getPesananByNama(name: String) {
   return pesanan[0];
 }
 
+export function getCurrentPenjual() {
+  const penjualString =
+    typeof window !== "undefined" ? localStorage.getItem("penjual") : "";
+  const penjual: Penjual = penjualString ? JSON.parse(penjualString) : null;
+  return new Penjual(penjual);
+}
+export function getCurrentPenjualNamaKios() {
+  const penjual = getCurrentPenjual();
+  return penjual?.kios;
+}
+export function getCurrentPenjualUsername() {
+  const penjual = getCurrentPenjual();
+  return penjual?.username;
+}
+export function getCurrentPenjualPassword() {
+  const penjual = getCurrentPenjual();
+  return penjual?.password;
+}
 export function setLoggedPenjual(penjual: Penjual | undefined) {
   typeof window !== "undefined"
     ? localStorage.setItem("penjual", JSON.stringify(penjual))
     : null;
-}
-export function updateCurrentPenjual(penjual: Penjual) {
-  removeLoggedPenjual();
-  setLoggedPenjual(penjual);
 }
 export function setLoggedPenjualByCredentials(
   username: String,
@@ -98,10 +127,27 @@ export function setLoggedPenjualByCredentials(
     setLoggedPenjual(penjual);
   });
 }
+export function updateCurrentPenjual(penjual: Penjual) {
+  removeLoggedPenjual();
+  setLoggedPenjual(penjual);
+}
 export function removeLoggedPenjual() {
   typeof window !== "undefined" ? localStorage.removeItem("penjual") : null;
 }
-
+export function redirectGeneration(router: AppRouterInstance) {
+  router.push("/generate");
+}
+export function redirectListPage(router: AppRouterInstance) {
+  router.push("/list");
+}
+export function isPenjualLogged() {
+  const isLogged = getCurrentPenjual() != null;
+  return isLogged;
+}
+export function isNamaKiosAvailable() {
+  const namaKios = getCurrentPenjualNamaKios();
+  return namaKios;
+}
 export function assignNamaKios(kios: String) {
   const currentPenjual = getCurrentPenjual();
   const penjual = new Penjual(currentPenjual!);
@@ -118,24 +164,11 @@ export function subscribePesanan(
     const fetchedPesanan: String[] = [];
     doc.docs.forEach((data) => {
       const pesanan = { id: data.id, ...data.data() } as unknown as Pembeli;
-      if (pesanan.penjualId === penjual!.id) fetchedPesanan.push(pesanan.nama!);
+      if (pesanan.penjualId === penjual!.id && pesanan.status !== "Done")
+        fetchedPesanan.push(pesanan.nama!);
     });
     callback(fetchedPesanan);
   });
-}
-export function getCurrentPenjualNamaKios() {
-  const penjual = getCurrentPenjual();
-  return penjual?.kios;
-}
-export function isNamaKiosAvailable() {
-  const namaKios = getCurrentPenjualNamaKios();
-  return namaKios;
-}
-export function redirectGeneration(router: AppRouterInstance) {
-  router.push("/generate");
-}
-export function redirectListPage(router: AppRouterInstance) {
-  router.push("/list");
 }
 export function convertToFile(QR: HTMLImageElement) {
   return QR.src;
