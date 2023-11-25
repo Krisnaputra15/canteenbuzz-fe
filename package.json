@@ -9,18 +9,24 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "cookies-next": "^4.1.0",
     "firebase": "^10.6.0",
+    "howler": "^2.2.4",
     "html-react-parser": "^5.0.6",
     "next": "14.0.2",
     "nextjs-current-url": "^1.0.3",
     "qrcode-generator": "^1.4.4",
     "react": "^18",
+    "react-beforeunload": "^2.6.0",
     "react-dom": "^18",
+    "react-onesignal": "^3.0.1",
     "react-router-dom": "^6.19.0"
   },
   "devDependencies": {
+    "@types/howler": "^2.2.11",
     "@types/node": "^20",
     "@types/react": "^18",
+    "@types/react-beforeunload": "^2.1.4",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
     "eslint": "^8",
