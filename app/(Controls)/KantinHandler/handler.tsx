@@ -5,15 +5,20 @@ import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.share
 export function redirectMainPage(router: AppRouterInstance) {
   router.push("/main");
 }
-
 export async function getPenjualByKios(kios: String) {
   const penjual: Penjual = await Kantin.build().then((kantin) => {
     return kantin.getPenjualByKios(kios);
   });
 
-  return new Penjual(penjual);
+  return penjual;
 }
+export async function getPenjualById(id: String) {
+  const penjual: Penjual = await Kantin.build().then((kantin) => {
+    return kantin.getPenjualById(id);
+  });
 
+  return penjual;
+}
 export async function getPenjualByCredentials(
   username: String,
   password: String
@@ -22,6 +27,6 @@ export async function getPenjualByCredentials(
     return kantin.getPenjualByCredentials(username, password);
   });
 
-  const res = penjual ? new Penjual(penjual) : undefined;
+  const res = penjual ? penjual : undefined;
   return res;
 }
