@@ -8,9 +8,10 @@ import {
   getDocs,
   getFirestore,
   doc,
+  Timestamp,
 } from "firebase/firestore";
-import { Penjual } from "../Penjual/entity";
-import { Pembeli } from "../Pembeli/entity";
+import { Penjual, TPenjual } from "../Penjual/entity";
+import { Pembeli, TPembeli } from "../Pembeli/entity";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -48,29 +49,44 @@ export class Kantin implements TKantin {
     const resPembeli = await getDocs(queryPembeli);
     const fetchedPesanan: Pembeli[] = [];
     resPembeli.forEach((docPembeli) => {
-      const tempPembeli = {
+      const tempPembeli: TPembeli = {
         id: docPembeli.id,
         ...docPembeli.data(),
-      } as unknown as Pembeli;
-      fetchedPesanan.push(tempPembeli);
+      };
+      const tempTimestamp = tempPembeli.waktu as unknown as Timestamp;
+      const pembeli: Pembeli = new Pembeli(
+        tempPembeli.id,
+        tempPembeli.penjualId,
+        tempTimestamp.toDate(),
+        tempPembeli.status,
+        tempPembeli.nama,
+        tempPembeli.token
+        // waktu: tempTimestamp.toDate(),
+      );
+
+      fetchedPesanan.push(pembeli);
     });
     resPenjual.forEach((doc) => {
-      const tempPenjual = {
+      const tempPenjual: TPenjual = {
         id: doc.id,
         ...doc.data(),
         pesanan: fetchedPesanan.filter((pesanan) => {
-          return pesanan.penjualId === doc.id;
+          return pesanan.getPenjualId() === doc.id;
         }),
-      } as unknown as Penjual;
-      fetchedPenjuals.push(tempPenjual);
+      };
+      fetchedPenjuals.push(
+        new Penjual(
+          tempPenjual.id,
+          tempPenjual.kantinId,
+          tempPenjual.kios,
+          tempPenjual.username,
+          tempPenjual.password,
+          tempPenjual.pesanan
+        )
+      );
     });
 
     return new Kantin(fetchedPenjuals);
-  }
-  async getPenjualById(id: String) {
-    return this.penjuals.filter((node) => {
-      return node.id === id;
-    })[0];
   }
   getPenjualByCredentials(username: String, password: String) {
     return this.penjuals.filter((node) => {
@@ -82,9 +98,9 @@ export class Kantin implements TKantin {
       return node.kios === kios;
     })[0];
   }
-  async getPenjualByCode(code: String) {
+  getPenjualById(id: String) {
     return this.penjuals.filter((node) => {
-      return node.code === code;
+      return node.getId() === id;
     })[0];
   }
 }

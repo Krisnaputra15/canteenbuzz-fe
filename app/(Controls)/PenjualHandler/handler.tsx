@@ -1,22 +1,21 @@
 import qrcode from "qrcode-generator";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import {
-  getPenjualByCredentials,
   getPenjualByKios,
+  isPenjualAvailableByCredentials,
 } from "../KantinHandler/handler";
-import { Penjual, db } from "@/app/(Entities)/Penjual/entity";
+import { Penjual, TPenjual, db } from "@/app/(Entities)/Penjual/entity";
 import {
+  Timestamp,
   collection,
-  doc,
   getDocs,
   onSnapshot,
   query,
   where,
 } from "firebase/firestore";
-import { Pembeli } from "@/app/(Entities)/Pembeli/entity";
-import { Dispatch, SetStateAction } from "react";
+import { Pembeli, TPembeli } from "@/app/(Entities)/Pembeli/entity";
 import { getPembeliByNamaAndKios } from "../PembeliHandler/handler";
-import OneSignal from "react-onesignal";
+import { Kantin } from "@/app/(Entities)/Kantin/entity";
 
 export async function notifyPembeli(nama: String) {
   const penjual = getCurrentPenjual();
@@ -34,19 +33,21 @@ export async function notifyPembeli(nama: String) {
     },
     body: JSON.stringify({
       app_id: "38b65b98-e456-48ea-9ea8-a62643db0e26",
-      include_subscription_ids: [pembeli.token],
+      include_subscription_ids: [pembeli.getToken()],
       contents: {
         en: "Pesanan Kamu sudah selesai!",
       },
     }),
   };
-
   pembeli.getStatus() === "Wait"
     ? fetch("https://onesignal.com/api/v1/notifications", options)
         .then((response) => response.json())
         .then((response) => {
           console.log(response);
           pembeli.setStatus("Ready");
+          setTimeout(() => {
+            pembeli.setStatus("Done");
+          }, 20000);
         })
         .catch((err) => console.error(err))
     : {};
@@ -54,29 +55,27 @@ export async function notifyPembeli(nama: String) {
 export async function addPesanan(nama: String, kios: String) {
   const penjual = await getPenjualByKios(kios);
   const pembeli = await Pembeli.build(nama);
-  pembeli.setPenjualId(penjual?.id);
+  pembeli.setPenjualId(penjual?.getId());
   if (penjual) {
     penjual.setPesanan([...penjual.getPesanan(), pembeli]);
   }
 }
-export async function isPenjualAvailable(username: String, password: String) {
-  const penjual = await getPenjualByCredentials(username, password);
-  return penjual === undefined ? false : true;
-}
+
 export async function isPenjualLoggedAndAvailable() {
   if (isPenjualLogged()) {
     const username = getCurrentPenjualUsername();
     const password = getCurrentPenjualPassword();
 
-    return await isPenjualAvailable(username || "", password || "").then(
-      (isAvailable) => {
-        if (isAvailable) {
-          return true;
-        } else {
-          return false;
-        }
+    return await isPenjualAvailableByCredentials(
+      username || "",
+      password || ""
+    ).then((isAvailable) => {
+      if (isAvailable) {
+        return true;
+      } else {
+        return false;
       }
-    );
+    });
   } else return false;
 }
 export async function getPesananByNama(name: String) {
@@ -89,7 +88,7 @@ export async function getPesananByNama(name: String) {
   const currentPenjual = getCurrentPenjual();
   resPembeli.forEach((doc) => {
     const data = doc.data() as Pembeli;
-    if (currentPenjual!.id === data.penjualId) {
+    if (currentPenjual!.getId() === data.getPenjualId()) {
       pesanan.push(data);
     }
   });
@@ -99,8 +98,17 @@ export async function getPesananByNama(name: String) {
 export function getCurrentPenjual() {
   const penjualString =
     typeof window !== "undefined" ? localStorage.getItem("penjual") : "";
-  const penjual: Penjual = penjualString ? JSON.parse(penjualString) : null;
-  return new Penjual(penjual);
+  const penjual: TPenjual = penjualString
+    ? JSON.parse(penjualString)
+    : new Penjual(undefined, undefined, undefined, undefined, undefined);
+  return new Penjual(
+    penjual.id,
+    penjual.kantinId,
+    penjual.kios,
+    penjual.username,
+    penjual.password,
+    penjual.pesanan
+  );
 }
 export function getCurrentPenjualNamaKios() {
   const penjual = getCurrentPenjual();
@@ -119,13 +127,13 @@ export function setLoggedPenjual(penjual: Penjual | undefined) {
     ? localStorage.setItem("penjual", JSON.stringify(penjual))
     : null;
 }
-export function setLoggedPenjualByCredentials(
+export async function setLoggedPenjualByCredentials(
   username: String,
   password: String
 ) {
-  getPenjualByCredentials(username, password).then((penjual) => {
-    setLoggedPenjual(penjual);
-  });
+  setLoggedPenjual(
+    (await Kantin.build()).getPenjualByCredentials(username, password)
+  );
 }
 export function updateCurrentPenjual(penjual: Penjual) {
   removeLoggedPenjual();
@@ -149,24 +157,44 @@ export function isNamaKiosAvailable() {
   return namaKios;
 }
 export function assignNamaKios(kios: String) {
-  const currentPenjual = getCurrentPenjual();
-  const penjual = new Penjual(currentPenjual!);
-  if (penjual) {
+  const penjual = getCurrentPenjual();
+
+  if (penjual.getId() != "") {
     penjual.setKios(kios);
     updateCurrentPenjual(penjual);
   }
 }
-export function subscribePesanan(
-  callback: Dispatch<SetStateAction<String[] | undefined>>
-) {
+export function subscribePesanan(callback: (stringArr: String[]) => void) {
   const penjual = getCurrentPenjual();
   const unsub = onSnapshot(collection(db, "pembeli"), (doc) => {
+    const fetchedPembeli: Pembeli[] = [];
     const fetchedPesanan: String[] = [];
     doc.docs.forEach((data) => {
-      const pesanan = { id: data.id, ...data.data() } as unknown as Pembeli;
-      if (pesanan.penjualId === penjual!.id && pesanan.status !== "Done")
-        fetchedPesanan.push(pesanan.nama!);
+      const pesanan: TPembeli = { id: data.id, ...data.data() };
+      if (pesanan.penjualId === penjual!.getId() && pesanan.status !== "Done")
+        fetchedPembeli.push(
+          new Pembeli(
+            pesanan.id,
+            pesanan.penjualId,
+            (pesanan.waktu as unknown as Timestamp).toDate(),
+            pesanan.status,
+            pesanan.nama,
+            pesanan.token
+          )
+        );
     });
+    fetchedPembeli.sort(function (a, b) {
+      // Turn your strings into dates, and then subtract them
+      // to get a value that is either negative, positive, or zero.
+      const aTime = new Date(a.getWaktu()).getTime();
+      const bTime = new Date(b.getWaktu()).getTime();
+
+      return aTime - bTime;
+    });
+    fetchedPembeli.forEach((pembeli) => {
+      fetchedPesanan.push(pembeli.getNama());
+    });
+
     callback(fetchedPesanan);
   });
 }
@@ -186,7 +214,7 @@ export function generateQRURL(code: String) {
   const qr = qrcode(4, "L");
   qr.addData(pathname);
   qr.make();
-  const imgString = qr.createImgTag();
+  const imgString = qr.createImgTag(10);
   const imgObj = new Image();
   imgObj.src = imgString.split('"')[1];
 

@@ -11,13 +11,7 @@ function HalamanGenerasiURLdanQRcode() {
   const [isNamaKiosInputted, setIsNamaKiosInputted] = useState<boolean>(false);
   const [URL, setURL] = useState<String>("");
   const [image, setImage] = useState<HTMLImageElement>();
-  const onPressGenerate = (kios: String) => {
-    assignNamaKios(kios);
-    const code = kios;
-    const generatedData = generateQRURL(code);
-    setURL(generatedData.data.URL);
-    setImage(generatedData.data.QR);
-  };
+  const [errorElement, setErrorElement] = useState<ReactElement>();
   useEffect(() => {
     setIsNamaKiosInputted(true);
   }, [URL]);
@@ -29,13 +23,26 @@ function HalamanGenerasiURLdanQRcode() {
       setImage(generatedData.data.QR);
     } else setIsNamaKiosInputted(false);
   }, []);
+  const onPressGenerate = (kios: String) => {
+    assignNamaKios(kios);
+    const generatedData = generateQRURL(kios);
+    setURL(generatedData.data.URL);
+    setImage(generatedData.data.QR);
+  };
   const createErrorElement = (message: String) => {
     const page: ReactElement = <div>{message}</div>;
     return page;
   };
   const downloadQR = (fileType: String) => {
-    const fileURL = convertToFile(image ? image : new Image());
+    var fileURL;
+    try {
+      fileURL = convertToFile(image ? image : new Image());
+    } catch (error) {
+      setErrorElement(createErrorElement("QR dan Url gagal diunduh"));
+    }
+
     return fileURL;
+    //if fetch data failed please make error element
   };
   return (
     <div className="h-screen w-screen ">
@@ -44,7 +51,7 @@ function HalamanGenerasiURLdanQRcode() {
       </div>
       {isNamaKiosInputted ? (
         <div className="h-3/4 white flex flex-col items-center justify-center">
-          {image && <img width={80} height={80} src={image.src}></img>}
+          {image && <img width={200} height={200} src={image.src}></img>}
           <input value={URL as string} readOnly></input>
           <div>
             {image && (
@@ -55,6 +62,7 @@ function HalamanGenerasiURLdanQRcode() {
               </button>
             )}
           </div>
+          {errorElement}
         </div>
       ) : (
         <div className="h-3/4 flex flex-col items-center justify-center">

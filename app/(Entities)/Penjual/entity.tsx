@@ -11,6 +11,7 @@ import {
   getDocs,
   getFirestore,
   setDoc,
+  Timestamp,
 } from "firebase/firestore";
 import { Pembeli } from "../Pembeli/entity";
 // TODO: Add SDKs for Firebase products that you want to use
@@ -38,7 +39,6 @@ export type TPenjual = {
   kios?: String;
   username?: String;
   password?: String;
-  code?: String;
   pesanan?: Pembeli[];
 };
 export class Penjual implements TPenjual {
@@ -47,17 +47,22 @@ export class Penjual implements TPenjual {
   kios?: String;
   username?: String;
   password?: String;
-  code?: String;
   pesanan?: Pembeli[];
 
-  constructor(penjual: Penjual | undefined) {
-    this.id = penjual?.id;
-    this.kantinId = penjual?.kantinId;
-    this.kios = penjual?.kios ? penjual.kios : undefined;
-    this.username = penjual?.username;
-    this.password = penjual?.password;
-    this.code = penjual?.code;
-    this.pesanan = penjual?.pesanan ? penjual.pesanan : [];
+  constructor(
+    id?: String,
+    kantinId?: String,
+    kios?: String,
+    username?: String,
+    password?: String,
+    pesanan?: Pembeli[]
+  ) {
+    this.id = id;
+    this.kantinId = kantinId;
+    this.kios = kios ? kios : undefined;
+    this.username = username;
+    this.password = password;
+    this.pesanan = pesanan ? pesanan : [];
   }
 
   setId(id: String): void {
@@ -85,70 +90,42 @@ export class Penjual implements TPenjual {
     this.password = password;
   }
 
-  setCode(code: String): void {
-    this.code = code;
-  }
-
   setPesanan(pesanan: Pembeli[]): void {
     this.pesanan = pesanan;
   }
 
-  getId(): String | undefined {
-    return this.id;
+  getId(): String {
+    return this.id || "";
+  }
+  getKios(): String {
+    return this.kios || "";
   }
 
-  getKantinId(): String | undefined {
-    return this.kantinId;
+  getUsername(): String {
+    return this.username || "";
   }
 
-  getKios(): String | undefined {
-    return this.kios;
-  }
-
-  getUsername(): String | undefined {
-    return this.username;
-  }
-
-  getPassword(): String | undefined {
-    return this.password;
-  }
-
-  getCode(): String | undefined {
-    return this.code;
+  getPassword(): String {
+    return this.password || "";
   }
 
   getPesanan(): Pembeli[] {
     return this.pesanan || [];
   }
+  // getPesanan(): Pembeli[] {
+  //   //theres something to do with this
+  //   const fetchedPembeli: Pembeli[] = [];
+  //   this.pesanan?.forEach((pembeli) => {
+  //     const tempTimestamp = pembeli.waktu as unknown as Timestamp;
+  //     pembeli.getWaktu()
+  //       ? fetchedPembeli.push(pembeli)
+  //       : fetchedPembeli.push(
+  //           new Pembeli({
+  //             ...pembeli,
+  //             waktu: tempTimestamp.toDate(),
+  //           } as Pembeli)
+  //         );
+  //   });
+  //   return fetchedPembeli;
+  // }
 }
-// export async function getPesanan(penjualId: String) {
-//   var res = false;
-//   const docSnap = collection(db, "kantin");
-//   const kantin = await getDocs(
-//     query(docSnap, where("penjualId", "==", penjualId), limit(1))
-//   );
-
-//   if (!kantin.empty) {
-//     const pembeli = await getDocs(
-//       query(
-//         collection(db, "pembeli"),
-//         where("kantinId", "==", kantin.docs[0].id),
-//         orderBy("waktu", "desc")
-//       )
-//     );
-//     return pembeli;
-//   }
-
-//   return null;
-// }
-
-// export async function setKios(id: String, kios: String) {
-//   var res = false;
-//   const kiosRef = doc(db, "kantin", "" + id);
-
-//   const update = await updateDoc(kiosRef, {
-//     namaKios: kios,
-//   });
-
-//   return update;
-// }
